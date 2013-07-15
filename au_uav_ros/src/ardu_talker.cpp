@@ -174,7 +174,7 @@ bool au_uav_ros::ArduTalker::getPlaneID(au_uav_ros::planeIDGetter::Request &req,
 int main(int argc, char** argv)	{
 
 	std::cout << "hello world!" <<std::endl;
-	std::string port = "/dev/ttyACM1";
+	std::string port = "/dev/ttyACM0";
 
 	ros::init(argc, argv, "ArduTalker");
 	ros::NodeHandle n;

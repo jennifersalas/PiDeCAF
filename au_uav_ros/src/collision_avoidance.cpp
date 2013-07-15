@@ -3,9 +3,7 @@
 void au_uav_ros::CollisionAvoidance::init(int planeID)	{
 
 	ROS_INFO("CollisionAvoidance:init()");
-
-	//Hardcode id for now
-	me.setID(255);
+	me.setID(planeID);
 
 }
 
@@ -14,6 +12,15 @@ au_uav_ros::Command au_uav_ros::CollisionAvoidance::avoid(au_uav_ros::Telemetry 
 	ROS_INFO("CollisionAvoidance::avoid() me position: %f, %f, %f | me destination: %f, %f", me.getCurrentLoc().latitude, me.getCurrentLoc().longitude, me.getCurrentLoc().altitude,
 											me.getDestination().latitude, me.getDestination().longitude);
 	au_uav_ros::Command newCmd;
+
+	//Setting goalwp in plane object
+	au_uav_ros::waypoint dest;
+	goal_wp_lock.lock();
+	dest.latitude = goal_wp.latitude;
+	dest.longitude = goal_wp.longitude;
+	dest.altitude = goal_wp.altitude;
+	goal_wp_lock.unlock();
+	me.setDestination(dest);
 
 	au_uav_ros::waypoint tempForceWaypoint = fsquared::findTempForceWaypoint(me, telem);
 	//Make new command from the calculated waypoint
@@ -30,10 +37,8 @@ au_uav_ros::Command au_uav_ros::CollisionAvoidance::avoid(au_uav_ros::Telemetry 
 
 void au_uav_ros::CollisionAvoidance::setGoalWaypoint(au_uav_ros::Command com)	{
 	ROS_INFO("CollisionAvoidance::setGoalWaypoint()");
+	
+	goal_wp_lock.lock();
 	goal_wp = com;
-	au_uav_ros::waypoint dest;
-	dest.latitude = com.latitude;
-	dest.longitude = com.longitude;
-	dest.altitude = com.altitude;
-	me.setDestination(dest);
+	goal_wp_lock.unlock();
 }

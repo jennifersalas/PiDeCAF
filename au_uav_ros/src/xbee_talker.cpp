@@ -34,8 +34,8 @@ bool au_uav_ros::XbeeTalker::init(ros::NodeHandle _n)	{
 
 	//Set up Ros stuff. Todo - update this my_telemetry
 	m_node = _n;
-	m_telem_pub = m_node.advertise<au_uav_ros::Telemetry>("all_telemetry", 10);
-	m_cmd_pub = m_node.advertise<au_uav_ros::Command>("GCS_commands", 5);
+	m_telem_pub = m_node.advertise<au_uav_ros::Telemetry>("all_telemetry", 5);
+	m_cmd_pub = m_node.advertise<au_uav_ros::Command>("gcs_commands", 5);
 	telem_sub = m_node.subscribe("my_mav_telemetry", 2, &XbeeTalker::myTelemCallback, this); 
 	return true;
 }
@@ -119,8 +119,9 @@ void au_uav_ros::XbeeTalker::listen()	{
 			mavlink_mission_item_t receivedCommand;
 			mavlink_msg_mission_item_decode(&message, &receivedCommand);
 			au_uav_ros::mav::convertMavlinkCommandToROS(receivedCommand, cmdToForward);
+			cmdToForward.planeID = message.sysid;
 			m_cmd_pub.publish(cmdToForward);
-			ROS_ERROR("Received and forwarded command with ID: %d lat: %f|lng %f|alt%f",cmdToForward.planeID,
+			ROS_ERROR("xbee: Received and forwarded command with ID: %d lat: %f|lng %f|alt%f",cmdToForward.planeID,
 					 cmdToForward.latitude, cmdToForward.longitude, cmdToForward.altitude);
 		}
         }

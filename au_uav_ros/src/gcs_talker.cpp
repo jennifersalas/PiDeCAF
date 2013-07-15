@@ -35,8 +35,8 @@ bool au_uav_ros::GCSTalker::init(ros::NodeHandle _n)	{
 
 	//Set up Ros stuff. Todo - 
 	m_node = _n;
-	m_command_sub = m_node.subscribe("ca_command", 10, &GCSTalker::commandCallback, this);
-	
+	m_command_sub = m_node.subscribe("gcs_commands", 10, &GCSTalker::commandCallback, this);
+	telem_sub = m_node.subscribe("my_mav_telemetry", 2, &GCSTalker::myTelemCallback, this);
 	m_telem_pub = m_node.advertise<au_uav_ros::Telemetry>("all_telemetry", 5);
 	m_mav_telem_pub = m_node.advertise<au_uav_ros::Telemetry>("my_mav_telemetry", 5);
 	return true;
@@ -111,8 +111,8 @@ void au_uav_ros::GCSTalker::commandCallback(au_uav_ros::Command cmd)	{
 	mavlink_message_t mavlinkMsg;
 	sysid = cmd.planeID;
 	//stuff mavlinkMsg with the correct paramaters
-	mavlink_msg_mission_item_pack(sysid, compid, &mavlinkMsg, 
-			              sysid, serial_compid, 0, 
+	mavlink_msg_mission_item_pack(cmd.planeID, compid, &mavlinkMsg, 
+			              cmd.planeID, serial_compid, 0, 
 				      MAV_FRAME_GLOBAL, MAV_CMD_NAV_WAYPOINT, 
 				      2, 0, 20.0, 100.0, 1.0, 0.0, 
 				      cmd.latitude, cmd.longitude, cmd.altitude);
@@ -125,6 +125,28 @@ void au_uav_ros::GCSTalker::commandCallback(au_uav_ros::Command cmd)	{
 	m_gcs.unlock();
 	if (messageLength != written) ROS_ERROR("ERROR: Wrote %d bytes but should have written %d\n",
 						written, messageLength);
+}
+
+void au_uav_ros::GCSTalker::myTelemCallback(au_uav_ros::Telemetry tUpdate)	{
+ROS_INFO("GCSTalker::telemCallback::ding! \n");
+
+mavlink_message_t mavlinkMsg;
+        static uint8_t buffer[MAVLINK_MAX_PACKET_LEN];
+//stuff mavlinkMsg with all the correct paramaters
+mavlink_msg_au_uav_pack(tUpdate.planeID, compid, &mavlinkMsg, tUpdate.currentLatitude, tUpdate.currentLongitude,
+tUpdate.currentAltitude, tUpdate.destLatitude, tUpdate.destLongitude,
+                                tUpdate.destAltitude, tUpdate.groundSpeed, tUpdate.airSpeed, tUpdate.targetBearing,
+tUpdate.distanceToDestination, tUpdate.currentWaypointIndex);
+
+
+        int messageLength = mavlink_msg_to_send_buffer(buffer, &mavlinkMsg);
+ros::Duration(0.000001).sleep();
+        m_gcs.lock();
+        int written = write(m_gcs.getFD(), (char*)buffer, messageLength);
+        m_gcs.unlock();
+        if (messageLength != written) ROS_ERROR("ERROR: Wrote %d bytes but should have written %d\n",
+                                                written, messageLength);
+
 }
 
 void au_uav_ros::GCSTalker::spinThread()	{

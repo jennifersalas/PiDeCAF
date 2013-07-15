@@ -135,10 +135,10 @@ target_link_libraries(planeIDServer_tester ${catkin_LIBRARIES})
 set_target_properties(planeIDServer_tester PROPERTIES OUTPUT_NAME planeIDServer_tester)
 add_rostest(test/planeIDServerTester.test)
 
-catkin_add_gtest(planeIDClient_tester src/test/clientSideIDTester.cpp)
-target_link_libraries(planeIDClient_tester ${catkin_LIBRARIES})
-set_target_properties(planeIDClient_tester PROPERTIES OUTPUT_NAME planeIDClient_tester)
-add_rostest(test/planeIDClientTester.test)
+catkin_add_gtest(mover_state_tester src/test/moverStateMachine.cpp)
+target_link_libraries(mover_state_tester ${catkin_LIBRARIES})
+set_target_properties(mover_state_tester PROPERTIES OUTPUT_NAME mover_state_tester)
+add_rostest(test/mover_state_tester.test)
 
 catkin_package(
    INCLUDE_DIRS include

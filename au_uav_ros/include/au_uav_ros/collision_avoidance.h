@@ -3,6 +3,7 @@
 
 #include "ros/ros.h"
 
+#include <boost/thread/mutex.hpp>
 
 //Custom ros msgs
 #include "au_uav_ros/Telemetry.h"
@@ -15,8 +16,10 @@
 namespace au_uav_ros	{
 	class CollisionAvoidance	{
 	private:
-		au_uav_ros::PlaneObject me;  //planeObject representation of the plane running this algorithm
+		au_uav_ros::PlaneObject me;  	//planeObject representation of the plane running this algorithm
 		au_uav_ros::Command goal_wp;
+
+		boost::mutex goal_wp_lock;	//coordinate access to goal_wp 
 	public:
 		void init(int planeID);	
 		/*

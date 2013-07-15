@@ -41,7 +41,7 @@ namespace au_uav_ros{
 		//ros stuff
 		ros::NodeHandle m_node;
 		ros::Subscriber m_command_sub;	//Subscribes to CA commands 
-		
+		ros::Subscriber telem_sub;
 		ros::Publisher m_telem_pub;
 		ros::Publisher m_mav_telem_pub;
 	public:
@@ -58,7 +58,7 @@ namespace au_uav_ros{
 		//Out - writing to ardu 
 		void spinThread();				//spin() and listens for myTelemCallbacks
 		void commandCallback(au_uav_ros::Command cmd);	//sends commands to planes in air
-
+		void myTelemCallback(au_uav_ros::Telemetry tUpdate);
 	};
 }
 #endif
