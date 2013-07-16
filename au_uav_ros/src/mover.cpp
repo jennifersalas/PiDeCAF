@@ -10,8 +10,6 @@
  * 	all_telemetry 	Calls collision avoidance (ca.avoid()) and sets next_wp.	
  *	gcs_command	Sets goal_wp to newly received goal waypoint.
  *
- * TODOS: Lock setting goal_wp for CA.
- * 	  MOre robust for when planeID service is not succesfull.	  
  */
 
 
@@ -31,8 +29,7 @@ void au_uav_ros::Mover::all_telem_callback(au_uav_ros::Telemetry telem)	{
 	else	{
 		//Using goal_wp as our "avoidance" wp, for testing.
 		goal_wp_lock.lock();
-		com = goal_wp;	//something ain't working right T.T
-		com.replace = true; 	
+		com = goal_wp;	
 		goal_wp_lock.unlock();
 		fprintf(stderr, "\nmover::telem_callback goalwp(%f|%f|%f)\n", com.latitude, com.longitude, com.altitude);
 	}
@@ -49,13 +46,13 @@ void au_uav_ros::Mover::all_telem_callback(au_uav_ros::Telemetry telem)	{
 }
 
 /*
- * Callback on all ground control commands. Sets goal waypoint in Mover.
+ * Callback on all ground control commands. 
+ * 	Sets goal waypoint in Mover.
+ * 	Changes Mover state if command latitude is EMERGENCY_PROTOCOL_LAT.
  */
 void au_uav_ros::Mover::gcs_command_callback(au_uav_ros::Command com)	{
-	//State changing will be done in this function, instead of in move(). This GCS callback will be executed not as frequently as the move,
-	//since not many gcs commands will be coming in.
 
-	//TESTING STUFF - Quick Emergency Protocol - START and STOP publishing to ca_commands to prevent overtaking manual mode.
+	//Ignore commands not for our plane.
 	if(planeID == com.planeID)	{
 		enum state temp;
 		if(com.latitude == EMERGENCY_PROTOCOL_LAT)	{
@@ -103,7 +100,8 @@ void au_uav_ros::Mover::gcs_command_callback(au_uav_ros::Command com)	{
 //----------------------------------------------------
 
 /*
- * Plane ID service in Ardupilot Node called. If unable to get planeID, will return false and Mover will be killed.
+ * Initializes ROS subscribers/publishers/clients.
+ * Plane ID service in Ardupilot Node called. 
  */
 bool au_uav_ros::Mover::init(ros::NodeHandle n, bool _test)	{
 	//Ros stuff
@@ -116,7 +114,6 @@ bool au_uav_ros::Mover::init(ros::NodeHandle n, bool _test)	{
 	
 
 	//Find out my Plane ID.
-	//-> need timed call? or keep trying to get plane id???
 	if(_test)
 		planeID = 999;
 	else	{
@@ -219,8 +216,7 @@ void au_uav_ros::Mover::caCommandPublish()	{
 	}
 	ca_wp_lock.unlock();	
 
-	//don't want to forward deafult command, if no command is returned
-//	if(com.latitude != INVALID_GPS_COOR && com.latitude !=0)
+	if(!empty_ca_q)
 		ca_commands.publish(com);
 
 }

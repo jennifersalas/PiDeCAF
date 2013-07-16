@@ -37,14 +37,39 @@
 namespace au_uav_ros	{
 	class Mover {
 		private:
+			/*
+			 * For ease of testing this node by itself, the ros parameter "testing" can be set (see Parameter Server on wiki).
+			 * In testing mode ... 
+			 * 	the planeIDGetter service is not called 
+			 * 	a fake planeID (999) is supplied 
+			 * 	collision avoidance's avoid() function is faked to assign ca_wp to the goal waypoint. 
+			 */
 			bool is_testing;
 			
-			//Meta - State Machine fun. NOte - State is changed by gcs_command callback.
+			/*
+			 * Statefulness
+			 * Mover node operates in three states. 
+			 * Motivation: The Ardupilot may not respond to remote control if commands are being continually sent. 
+			 * 	ST_RED  		STOP. Do not publish any ca_commands. 
+			 * 	ST_GREEN_CA_ON 		Publish to ardu through ca_commands, with collision avoidance turned on. 
+			 * 	ST_GREEN_CA_OFF 	Publish to ardu through ca_commands, with collision avoidance turned off.
+			 * 				Will publish goal waypoints. 
+			 *
+			 * Changing States: 	Commands whose latitude and longitude are specific values will trigger a state change.
+			 * 			See pi_standard_defs.h for details.
+			 */
 			enum state {ST_RED, ST_GREEN_CA_ON, ST_GREEN_CA_OFF};	
 			enum state current_state; 
-			boost::mutex state_change_lock;			//Both gcs_command callback and move() need to FIGHT TO THE DEATH
+			boost::mutex state_change_lock;			//Both gcs_command callback and move() need to fight over access to this state.
 
-			//Collision Avoidance fun
+			/*
+			 * Collision Avoidance
+			 * This object holds the collision avoidance algorithm itself. Mover will call ca.avoid() on every telemetry update
+			 * from other planes and my own plane, which returns a command to go to.
+			 * Assumption: 	When state is ST_GREEN_CA_ON, ca is responsible for all logic related to generating correct next waypoint.
+			 * 		The only responsiblity of Mover is to continually send out the first waypoint in ca_wp deque at the
+			 * 		rate specified in move(). If ca_wp is empty, no command is sent. 
+			 */
 			CollisionAvoidance ca;
 
 			int planeID;					//current plane id
@@ -52,7 +77,7 @@ namespace au_uav_ros	{
 			
 			//Queues for Waypoints
 			au_uav_ros::Command goal_wp;			//store goal wp from Ground control 
-			std::deque<au_uav_ros::Command> ca_wp;	//store waypoint to go to next, produced by collision avoidance 
+			std::deque<au_uav_ros::Command> ca_wp;		//store waypoint to go to next, produced by collision avoidance 
 
 			//Locks for Queues
 			boost::mutex goal_wp_lock;
@@ -70,11 +95,10 @@ namespace au_uav_ros	{
 			 * Callback for any incoming telemetry msg (including my own).
 			 * Updates my position if it's my telemetry.
 			 * Calls CollisionAvoidance's avoid() function.
-			 * Replaces or queues up avoid()'s returned command.
+			 * Replaces ca_wp with avoid()'s returned command.
 			 */
 			void all_telem_callback(au_uav_ros::Telemetry telem);
 
-			
 			/*
 			 * callback for any ground control commands.
 			 * Replaces current goal wp with incoming command.
@@ -87,9 +111,9 @@ namespace au_uav_ros	{
 			//main decision making logic
 			void move();
 
-			//OK you can publish CA commands (ST_GREEN_CA_ON).
+			// Publish commands in state (ST_GREEN_CA_ON) 
 			void caCommandPublish();
-			//OK you can publish goal commands, ignore CA. (ST_GREEN_CA_OFF).
+			// Publish goal_wp in state (ST_GREEN_CA_OFF) 
 			void goalCommandPublish();
 		public:
 			int getPlaneID() {return planeID;} 
