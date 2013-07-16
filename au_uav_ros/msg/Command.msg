@@ -6,4 +6,3 @@ int16 param
 float64 latitude
 float64 longitude
 float64 altitude
-bool replace

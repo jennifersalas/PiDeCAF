@@ -31,7 +31,6 @@ au_uav_ros::Command au_uav_ros::CollisionAvoidance::avoid(au_uav_ros::Telemetry 
 	newCmd.latitude = tempForceWaypoint.latitude;
 	newCmd.longitude = tempForceWaypoint.longitude;
 	newCmd.altitude = me.getDestination().altitude;
-	newCmd.replace = true;
 	return newCmd;
 }
 
