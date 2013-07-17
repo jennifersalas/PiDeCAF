@@ -26,6 +26,8 @@ class test_state_machine {
 	au_uav_ros::Command go_ca_off;
 	au_uav_ros::Command go_ca_on;
 	au_uav_ros::Command regCom;
+	au_uav_ros::Command gradient_telem;
+	au_uav_ros::Command gradient_avoid;
 
 	au_uav_ros::Command previousCom;			//don't want to pushback duplicate commands
 
@@ -33,11 +35,12 @@ class test_state_machine {
 	std::vector<ros::Time> time_bin;			// time that ca_waypoints came in. 
 	double sleep_time; 
 
+	ros::Duration actual_lag;
 
 	test_state_machine()	{
 		sinceLastCACommand = ros::Time::now();
 		lag.sec = 1;
-		sleep_time = 1.3;
+		sleep_time = 1.5;
 		stop.latitude = EMERGENCY_PROTOCOL_LAT;
 		stop.longitude = META_STOP_LON;
 		stop.planeID = 999;
@@ -49,6 +52,16 @@ class test_state_machine {
 		go_ca_on.latitude = EMERGENCY_PROTOCOL_LAT;
 		go_ca_on.longitude = META_START_CA_ON_LON;
 		go_ca_on.planeID = 999;
+
+		gradient_telem.latitude = EMERGENCY_PROTOCOL_LAT;
+		gradient_telem.longitude = META_START_CA_ON_LON;
+		gradient_telem.altitude = META_GRADIENT_TELEM_ALT;
+		gradient_telem.planeID = 999;	
+
+		gradient_avoid.latitude = EMERGENCY_PROTOCOL_LAT;
+		gradient_avoid.longitude = META_START_CA_ON_LON;
+		gradient_avoid.altitude = META_GRADIENT_AVOID_ALT;
+		gradient_avoid.planeID = 999;	
 
 		regCom.latitude = 0;
 		regCom.longitude = 0;
@@ -114,11 +127,13 @@ class test_state_machine {
 
 
 	bool ca_commands_chatty()	{
-		return ros::Time::now() - sinceLastCACommand < lag; 
+		actual_lag = ros::Time::now() - sinceLastCACommand;
+		return actual_lag < lag; 
 	}
 
 	bool ca_commands_silent()	{
-		return ros::Time::now() - sinceLastCACommand > lag; 
+		actual_lag = ros::Time::now() - sinceLastCACommand;
+		return actual_lag > lag; 
 	}
 
 	std::vector<au_uav_ros::Command> getReceivedCommands()	{
@@ -238,6 +253,40 @@ TEST(mover, state_runthrough)	{
 	EXPECT_TRUE(t.ca_commands_silent()) << "GREEN_CA_OFF -> RED | stop should be silent";	
 
 
+	//RED-> GRAD_TELEM
+	gcs.publish(t.gradient_telem);
+	ros::Duration(t.sleep_time).sleep();	//time enough to measure lag initially
+	EXPECT_TRUE(t.ca_commands_chatty()) << "RED -> GRAD_TELEM| GRAD_TELEM should be chatty";	
+	
+	gcs.publish(t.regCom);
+	EXPECT_TRUE(t.ca_commands_chatty()) << "GRAD_TELEM| regCom should be chatty";	
+
+	//GRAD_TELEM -> GRAD_AVOID
+	gcs.publish(t.gradient_avoid);
+	ros::Duration(t.sleep_time).sleep();	//time enough to measure lag initially
+	EXPECT_TRUE(t.ca_commands_chatty()) << "GRAD_TELEM-> GRAD_AVOID| GRAD_AVOID should be chatty" ;
+	
+	gcs.publish(t.regCom);
+	EXPECT_TRUE(t.ca_commands_chatty()) << "GRAD_AVOID| regCom should be chatty";	
+
+	//GRAD_AVOID-> GREEN_CA_ON
+	gcs.publish(t.go_ca_on);
+	ros::Duration(t.sleep_time).sleep();	//time enough to measure lag initially
+	EXPECT_TRUE(t.ca_commands_chatty()) << "GRAD_AVOID-> CA_ON| CA_ONshould be chatty" ;
+	
+	gcs.publish(t.regCom);
+	EXPECT_TRUE(t.ca_commands_chatty()) << "CA_ON| regCom should be chatty";	
+
+
+	//GREEN_CA_ON -> RED
+	gcs.publish(t.stop);
+	ros::Duration(t.sleep_time).sleep();	//time enough to measure lag initially
+	EXPECT_TRUE(t.ca_commands_silent()) << "GREEN_CA_ON -> RED| stop should be silent";		
+	
+	gcs.publish(t.regCom);
+	EXPECT_TRUE(t.ca_commands_silent()) << "RED | regCom should be silent";	
+
+
 }
 
 
@@ -246,7 +295,6 @@ TEST(mover, state_runthrough)	{
 
 TEST(mover, ca_off_feeding)	{
 
-	ros::Duration(7).sleep(); //let spinner thread startup 
 	
 	
 	test_state_machine t;
@@ -254,12 +302,13 @@ TEST(mover, ca_off_feeding)	{
 	int numWaypoints = 5;
 	ros::Publisher gcs = n.advertise<au_uav_ros::Command>("gcs_commands", 5);	
 	ros::Subscriber ca = n.subscribe("ca_commands", 10, &test_state_machine::ca_command_callback, &t);	
-	
 
 	//Transitioning to ca_off state	
 	fprintf(stderr, "-> GREEN_CA_OFF/n");
+	gcs.publish(t.stop);
+	ros::Duration(7).sleep(); //let spinner thread startup 
 	ros::Duration(t.sleep_time).sleep();	//time enough to measure lag initially
-	EXPECT_TRUE(t.ca_commands_silent());	
+	EXPECT_TRUE(t.ca_commands_silent()) << "actuallag: s:" << t.actual_lag.sec << " ns:" << t.actual_lag.nsec;
 	gcs.publish(t.go_ca_off); //transition
 	ros::Duration(t.sleep_time).sleep();	//time enough to measure lag initially
 	EXPECT_TRUE(t.ca_commands_chatty());	
@@ -296,16 +345,10 @@ TEST(mover, ca_off_feeding)	{
 
 }
 
-//Given that state is GREEN_CA_ON, let's see if I'll still get the goal wps.
-//test_bool is specified in launch file, passed as param to Mover node.
-TEST(mover, ca_on_feeding)	{
-	ros::Duration(7).sleep(); //let spinner thread startup 
+
+TEST(mover, gradient_avoid_feeding)	{
 
 
-	//CA avoid is only called when a telemetry update is received. We'll emulate our telem updates coming in at 1hz
-	//in a separate thread, called from main.
-	
-	
 	test_state_machine t;
 	ros::NodeHandle n;	
 	int numWaypoints = 5;
@@ -314,10 +357,11 @@ TEST(mover, ca_on_feeding)	{
 	
 
 	//Transitioning to ca_on state	
-	fprintf(stderr, "-> GREEN_CA_ON\n");
+	fprintf(stderr, "-> GRADIENT_AVOID\n");
+	gcs.publish(t.stop);
 	ros::Duration(t.sleep_time).sleep();	//time enough to measure lag initially
 	EXPECT_TRUE(t.ca_commands_silent());	
-	gcs.publish(t.go_ca_on); //transition
+	gcs.publish(t.gradient_avoid); //transition
 	ros::Duration(t.sleep_time).sleep();	//time enough to measure lag initially
 	EXPECT_TRUE(t.ca_commands_chatty());	
 
@@ -327,6 +371,7 @@ TEST(mover, ca_on_feeding)	{
 
 	ros::Duration(t.sleep_time).sleep();	//enough time to publish everything
 	
+	gcs.publish(t.regCom);			//goal_wp back to 0|0|0 for next test
 	fprintf(stderr, "STOP STOP!\n");	
 	gcs.publish(t.stop); //publish stop... transition back
 	ros::Duration(t.sleep_time).sleep();	//time enough to measure lag initially
@@ -349,11 +394,60 @@ TEST(mover, ca_on_feeding)	{
 
 		fprintf(stderr, " Time diff (s) command %d: %f\n\n", i, (time_bin[i] - sendingTimes[i]).toSec());	
 	}		
-
-
-
-
 }
+
+
+TEST(mover, gradient_telem_feeding)	{
+
+
+	test_state_machine t;
+	ros::NodeHandle n;	
+	int numWaypoints = 5;
+	ros::Publisher gcs = n.advertise<au_uav_ros::Command>("gcs_commands", 5);	
+	ros::Subscriber ca = n.subscribe("ca_commands", 10, &test_state_machine::ca_command_callback, &t);	
+	
+
+	//Transitioning to ca_on state	
+	fprintf(stderr, "-> GRADIENT_telem\n");
+	gcs.publish(t.stop);
+	ros::Duration(t.sleep_time).sleep();	//time enough to measure lag initially
+	EXPECT_TRUE(t.ca_commands_silent());	
+	gcs.publish(t.gradient_telem); //transition
+	ros::Duration(t.sleep_time).sleep();	//time enough to measure lag initially
+	EXPECT_TRUE(t.ca_commands_chatty());	
+
+	//Publishing some GCS commands
+	std::vector<au_uav_ros::Command> forceFeeding = t.generateFakeWaypoints(5);
+	std::vector<ros::Time> sendingTimes = t.sendGCSCommands(forceFeeding, gcs);
+
+	ros::Duration(t.sleep_time).sleep();	//enough time to publish everything
+	
+	gcs.publish(t.regCom);			//goal_wp back to 0|0|0 for next test
+	fprintf(stderr, "STOP STOP!\n");	
+	gcs.publish(t.stop); //publish stop... transition back
+	ros::Duration(t.sleep_time).sleep();	//time enough to measure lag initially
+	EXPECT_TRUE(t.ca_commands_silent());	
+
+	//Now, seeing if the bins are equal...
+
+	fprintf(stderr, "Trying to get received...\n");	
+	std::vector<au_uav_ros::Command> ca_commands_bin = t.getReceivedCommands();	
+	std::vector<ros::Time> time_bin = t.getReceivedTimes();		
+
+
+	fprintf(stderr, "sent :%d | recv: %d", forceFeeding.size(), ca_commands_bin.size());	
+	ASSERT_TRUE(forceFeeding.size() == ca_commands_bin.size()) << "sent != recv: " << forceFeeding.size() << " " << ca_commands_bin.size();
+	for(int i =0; i< forceFeeding.size(); i++)	{
+		fprintf(stderr, "received :: back lat: %f \n", ca_commands_bin[i].latitude);
+		EXPECT_TRUE(forceFeeding[i].latitude == ca_commands_bin[i].latitude); 
+		EXPECT_TRUE(forceFeeding[i].longitude == ca_commands_bin[i].longitude);
+		EXPECT_TRUE(forceFeeding[i].altitude == ca_commands_bin[i].altitude) << "differ: " << forceFeeding[i] << "and " << ca_commands_bin[i]; 
+
+		fprintf(stderr, " Time diff (s) command %d: %f\n\n", i, (time_bin[i] - sendingTimes[i]).toSec());	
+	}		
+	
+}	
+
 
 int main(int argc, char ** argv)	{
 	ros::init(argc, argv, "planeIDTester");

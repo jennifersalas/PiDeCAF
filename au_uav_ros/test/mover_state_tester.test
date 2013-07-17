@@ -1,5 +1,5 @@
 <launch>
-	<param name="testing" type="bool" value="true"/>
+	<param name="fake_id" type="bool" value="true"/>
 	<node name="mover" pkg="au_uav_ros" type="mover" />
 	<test test-name="mover_state" pkg="au_uav_ros" type = "mover_state_tester" />
 

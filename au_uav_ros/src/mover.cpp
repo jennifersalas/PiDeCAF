@@ -15,32 +15,23 @@ void au_uav_ros::Mover::all_telem_callback(au_uav_ros::Telemetry telem)	{
 	state_change_lock.unlock();
 
 	au_uav_ros::Command com;
-	if(!is_testing)	{
-		switch(temp)	{
-			case(ST_GRADIENT_TELEM):	
-				fprintf(stderr, "\nmover::telem_callback gradient_telem(%f|%f|%f)\n", com.latitude, com.longitude, com.altitude);
-				goal_wp_lock.lock();
-				com = goal_wp;	
-				goal_wp_lock.unlock();
-				break;
-			case(ST_GRADIENT_AVOID):
-				fprintf(stderr, "\nmover::telem_callback gradient_avoid(%f|%f|%f)\n", com.latitude, com.longitude, com.altitude);
-				com = ca.avoid(telem, true);
-				break;
-			case(ST_GREEN_CA_ON):
-				fprintf(stderr, "\nmover::telem_callback ca_on(%f|%f|%f)\n", com.latitude, com.longitude, com.altitude);
-				com = ca.avoid(telem, false);
-				break;
-		}	
+	switch(temp)	{
+		case(ST_GRADIENT_TELEM):	
+			fprintf(stderr, "\nmover::telem_callback gradient_telem(%f|%f|%f)\n", com.latitude, com.longitude, com.altitude);
+			goal_wp_lock.lock();
+			com = goal_wp;	
+			goal_wp_lock.unlock();
+			break;
+		case(ST_GRADIENT_AVOID):
+			fprintf(stderr, "\nmover::telem_callback gradient_avoid(%f|%f|%f)\n", com.latitude, com.longitude, com.altitude);
+			com = ca.avoid(telem, true);
+			break;
+		case(ST_GREEN_CA_ON):
+			fprintf(stderr, "\nmover::telem_callback ca_on(%f|%f|%f)\n", com.latitude, com.longitude, com.altitude);
+			com = ca.avoid(telem, false);
+			break;
 	}
-	else	{
-		//Using goal_wp as our "avoidance" wp, for testing.
-		goal_wp_lock.lock();
-		com = goal_wp;	//something ain't working right T.T
-		com.replace = true; 	
-		goal_wp_lock.unlock();
-		fprintf(stderr, "\nmover::telem_callback goalwp(%f|%f|%f)\n", com.latitude, com.longitude, com.altitude);
-	}
+
 	//Check if ca_waypoint should be ignored
 	if(com.latitude == INVALID_GPS_COOR && com.longitude == INVALID_GPS_COOR && com.altitude == INVALID_GPS_COOR)	{
 		//ignore.
@@ -125,19 +116,21 @@ void au_uav_ros::Mover::gcs_command_callback(au_uav_ros::Command com)	{
 //node functions
 //----------------------------------------------------
 
-bool au_uav_ros::Mover::init(ros::NodeHandle n, bool _test)	{
+bool au_uav_ros::Mover::init(ros::NodeHandle n)	{
 	//Ros stuff
 	nh = n;
 
 	IDclient = nh.serviceClient<au_uav_ros::planeIDGetter>("getPlaneID");
 	ca_commands = nh.advertise<au_uav_ros::Command>("ca_commands", 10);	
 	all_telem = nh.subscribe("all_telemetry", 10, &Mover::all_telem_callback, this);
-	gcs_commands = nh.subscribe("gcs_commands", 20, &Mover::gcs_command_callback, this);	
+	gcs_commands = nh.subscribe("gcs_commands", 10, &Mover::gcs_command_callback, this);	
 	
 
 	//Find out my Plane ID.
 	//-> need timed call? or keep trying to get plane id???
-	if(_test)
+	bool fake_id;
+	n.param<bool>("fake_id", fake_id, false);
+	if(fake_id)
 		planeID = 999;
 	else	{
 		au_uav_ros::planeIDGetter srv;
@@ -162,7 +155,6 @@ bool au_uav_ros::Mover::init(ros::NodeHandle n, bool _test)	{
 	ca.init(planeID);
 
 	current_state = ST_RED;
-	is_testing = _test;
 	return true;
 }
 
@@ -204,9 +196,12 @@ void au_uav_ros::Mover::move()	{
 				ros::Duration(0.25).sleep(); 	//no swamping the ardupilot, it's a delicate thing 
 				goalCommandPublish();
 				break;
-			case(ST_GREEN_CA_ON):
 			case(ST_GRADIENT_TELEM):
+				fprintf(stderr, "mover::(ST_GRADIENT_TELEM)");
 			case(ST_GRADIENT_AVOID):
+				fprintf(stderr, "mover::(ST_GRADIENT_AVOID)");
+			case(ST_GREEN_CA_ON):
+				fprintf(stderr, "mover::(ST_GREEN_CA_ON) PUBLISHING CA COMMAND!\n");
 				ros::Duration(0.25).sleep(); 	//no swamping the ardupilot, it's a delicate thing 
 				caCommandPublish();
 				break;
@@ -230,7 +225,6 @@ void au_uav_ros::Mover::goalCommandPublish()	{
 
 //Assumes we are in ST_GREEN_CA_ON mode.
 void au_uav_ros::Mover::caCommandPublish()	{
-	fprintf(stderr, "mover::(ST_GREEN_CA_ON) PUBLISHING CA COMMAND!\n");
 	au_uav_ros::Command com;
 	
 	bool empty_ca_q = false;
@@ -257,12 +251,12 @@ int main(int argc, char **argv)	{
 	ros::NodeHandle n;
 
 	bool is_test;
-	n.param<bool>("testing", is_test, false);
+//	n.param<bool>("testing", is_test, false);
 	au_uav_ros::Mover mv;
 	
 	fprintf(stderr, "MOVER::Testing var is %d", (int)is_test);
 	
-	if(mv.init(n, is_test))	//channnge if doing real planes to true
+	if(mv.init(n ))	//channnge if doing real planes to true
 		mv.run();	
 	//spin and do move logic in separate thread
 
