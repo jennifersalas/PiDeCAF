@@ -26,8 +26,10 @@ namespace au_uav_ros	{
 		 * Called by mover's Telem callback. Takes in all telemetry callbacks (including my own).
 		 * Returns desired command, with bool replace field indicating wheter to queue up or replace with new CA waypoint.
 		 * If Command's lat, long, and alt fields are INVALID_GPS_COOR, it will be ignored.
+		 *
+		 * Gradient on - if this is true, then this avoid funciton will merely return the goal wp. Used for testing.
 		 */
-		au_uav_ros::Command avoid(au_uav_ros::Telemetry telem);	//Called when there's a telemetry callback.
+		au_uav_ros::Command avoid(au_uav_ros::Telemetry telem, bool gradient_on);	//Called when there's a telemetry callback.
 
 		/*
 		 * When mover receives a new GCS command, this function will be called.

@@ -28,7 +28,7 @@ namespace au_uav_ros	{
 			bool is_testing;
 			
 			//Meta - State Machine fun. NOte - State is changed by gcs_command callback.
-			enum state {ST_RED, ST_GREEN_CA_ON, ST_GREEN_CA_OFF};	
+			enum state {ST_RED, ST_GREEN_CA_ON, ST_GREEN_CA_OFF, ST_GRADIENT_TELEM, ST_GRADIENT_AVOID};	
 			enum state current_state; 
 			boost::mutex state_change_lock;			//Both gcs_command callback and move() need to FIGHT TO THE DEATH
 

@@ -8,7 +8,7 @@ void au_uav_ros::CollisionAvoidance::init(int planeID)	{
 }
 
 //TODO: Add some method to not resend commands when the waypoint has not changed?
-au_uav_ros::Command au_uav_ros::CollisionAvoidance::avoid(au_uav_ros::Telemetry telem)	{
+au_uav_ros::Command au_uav_ros::CollisionAvoidance::avoid(au_uav_ros::Telemetry telem, bool gradient_on)	{
 	ROS_INFO("CollisionAvoidance::avoid() me position: %f, %f, %f | me destination: %f, %f", me.getCurrentLoc().latitude, me.getCurrentLoc().longitude, me.getCurrentLoc().altitude,
 											me.getDestination().latitude, me.getDestination().longitude);
 	au_uav_ros::Command newCmd;
@@ -32,7 +32,16 @@ au_uav_ros::Command au_uav_ros::CollisionAvoidance::avoid(au_uav_ros::Telemetry 
 	newCmd.longitude = tempForceWaypoint.longitude;
 	newCmd.altitude = me.getDestination().altitude;
 	newCmd.replace = true;
-	return newCmd;
+
+	au_uav_ros::Command com;
+	if(gradient_on)	{
+		goal_wp_lock.lock();
+		com = goal_wp;
+		goal_wp_lock.unlock();
+	}
+	else
+		com = newCmd;
+	return com;
 }
 
 void au_uav_ros::CollisionAvoidance::setGoalWaypoint(au_uav_ros::Command com)	{

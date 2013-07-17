@@ -11,4 +11,7 @@
 #define META_START_CA_OFF_LON 444	//Start sending commands to ardupilot in normal mode.
 #define META_STOP_LON 777		//Turn collision avoidance off.
 
+//Assuming META_START_CA_ON_LON...
+#define META_GRADIENT_TELEM_ALT	111	//Test sending goal wp at the telem_callback level in CA_ON
+#define META_GRADIENT_AVOID_ALT	222	//Test sending goalwp at the ca::avoid level in CA_ON
 #endif	//PI_STANDARD_DEFS_H

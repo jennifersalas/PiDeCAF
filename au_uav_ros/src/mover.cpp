@@ -7,10 +7,32 @@ void au_uav_ros::Mover::all_telem_callback(au_uav_ros::Telemetry telem)	{
 	//CA will go here.
 	//It's OK to have movement/publishing ca-commands here, since this will be called
 	//when ardupilot publishes *my* telemetry msgs too.
+	
+	//get state for testing purposes
+	enum state temp;
+	state_change_lock.lock();
+	temp = current_state;
+	state_change_lock.unlock();
 
 	au_uav_ros::Command com;
-	if(!is_testing)
-		com = ca.avoid(telem);	
+	if(!is_testing)	{
+		switch(temp)	{
+			case(ST_GRADIENT_TELEM):	
+				fprintf(stderr, "\nmover::telem_callback gradient_telem(%f|%f|%f)\n", com.latitude, com.longitude, com.altitude);
+				goal_wp_lock.lock();
+				com = goal_wp;	
+				goal_wp_lock.unlock();
+				break;
+			case(ST_GRADIENT_AVOID):
+				fprintf(stderr, "\nmover::telem_callback gradient_avoid(%f|%f|%f)\n", com.latitude, com.longitude, com.altitude);
+				com = ca.avoid(telem, true);
+				break;
+			case(ST_GREEN_CA_ON):
+				fprintf(stderr, "\nmover::telem_callback ca_on(%f|%f|%f)\n", com.latitude, com.longitude, com.altitude);
+				com = ca.avoid(telem, false);
+				break;
+		}	
+	}
 	else	{
 		//Using goal_wp as our "avoidance" wp, for testing.
 		goal_wp_lock.lock();
@@ -42,13 +64,33 @@ void au_uav_ros::Mover::gcs_command_callback(au_uav_ros::Command com)	{
 		if(com.latitude == EMERGENCY_PROTOCOL_LAT)	{
 			int incomingCommand = (int)com.longitude;
 			switch(incomingCommand)	{
-			case(META_START_CA_ON_LON):	
-				fprintf(stderr, "Mover::CHANGING TO GREEN CA OFF MODE\n");
-				//change state to using CA 
-				state_change_lock.lock();
-				current_state = ST_GREEN_CA_ON;
-				state_change_lock.unlock();
+			case(META_START_CA_ON_LON):	{	
+				int gradient = (int)com.altitude;
+				switch(gradient)	{
+					case(META_GRADIENT_TELEM_ALT):	{
+						fprintf(stderr, "Mover::CHANGING TO GRADIENT_TELEM MODE\n");
+						state_change_lock.lock();
+						current_state = ST_GRADIENT_TELEM;
+						state_change_lock.unlock();
+						break;
+					}
+					case(META_GRADIENT_AVOID_ALT):	{
+						fprintf(stderr, "Mover::CHANGING TO GRADIENT_AVOIDMODE\n");
+						state_change_lock.lock();
+						current_state = ST_GRADIENT_AVOID;
+						state_change_lock.unlock();
+						break;
+					}
+					default:	{	
+						fprintf(stderr, "Mover::CHANGING TO GREEN CA ON MODE\n");
+						//change state to using CA 
+						state_change_lock.lock();
+						current_state = ST_GREEN_CA_ON;
+						state_change_lock.unlock();
+					}
+				}
 				break;
+			}
 			//No matter the state, STOP publishing.
 			case(META_STOP_LON):	
 				fprintf(stderr, "Mover::CHANGING TO NOGO MODE\n");
@@ -58,7 +100,7 @@ void au_uav_ros::Mover::gcs_command_callback(au_uav_ros::Command com)	{
 				state_change_lock.unlock();
 				break;
 			case(META_START_CA_OFF_LON):
-				fprintf(stderr, "Mover::CHANGING TO GREEN CA ON MODE\n");
+				fprintf(stderr, "Mover::CHANGING TO GREEN CA OFF MODE\n");
 				//change state to not using CA 
 				state_change_lock.lock();
 				current_state = ST_GREEN_CA_OFF;
@@ -163,6 +205,8 @@ void au_uav_ros::Mover::move()	{
 				goalCommandPublish();
 				break;
 			case(ST_GREEN_CA_ON):
+			case(ST_GRADIENT_TELEM):
+			case(ST_GRADIENT_AVOID):
 				ros::Duration(0.25).sleep(); 	//no swamping the ardupilot, it's a delicate thing 
 				caCommandPublish();
 				break;
