@@ -90,7 +90,7 @@ void au_uav_ros::GCSTalker::listen()	{
 			m_telem_pub.publish(tUpdate);
 			ROS_INFO("Received telemetry message from UAV[#%d] (lat:%f|lng:%f|alt:%f)", tUpdate.planeID, tUpdate.currentLatitude, tUpdate.currentLongitude, tUpdate.currentAltitude);
 
-			if(message.sysid != 255){
+			if(message.sysid != 5){
 				//Forward raw telemetry update to the xbee_talker node
 				au_uav_ros::mav::rawMavlinkTelemetryToRawROSTelemetry(myMSG, tRawUpdate);
 				tRawUpdate.planeID = message.sysid;
