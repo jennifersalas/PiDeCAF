@@ -13,7 +13,8 @@ Hardware
 
 Power
 -----
-
+Our current setup did burn out an ardupilot chip, so it is possible that something is set up incorrectly.  It would be good
+to check to see if there is something in the wiring which caused this so that it can be corrected.
 
 
 
@@ -27,8 +28,6 @@ raspberry Pi.
 The rapsberry Pi will run the collision avoidance algorithm by receiving telemetry updates from other planes and sending 
 avoidance waypoints to the ardupilot. The raspberry Pi will also forward telemetry updates from the plane it is mounted on
 to the xbee chip. The xbee chip which is responsible for sending and recieving telemetry information.
-
-
 
 
 
