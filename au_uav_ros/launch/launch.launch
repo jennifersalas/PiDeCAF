@@ -1,9 +1,0 @@
-<launch>
-	<node name="xbeeIn" pkg="au_uav_ros" type="xbeeIn"/>
-	<node name="xbeeOut" pkg="au_uav_ros" type="xbeeOut"/>
-	#required is required to force roscore to shutdown without SIGINT signal
-	<node name="guiInterfacer" pkg="au_uav_ros" type="guiInterfacer" required="true"/>
-	<node name="coordinator" pkg="au_uav_ros" type="coordinator" required="true"/>
-	<node name="AU_UAV_GUI" pkg="AU_UAV_GUI" type="AU_UAV_GUI" output="screen" />
-	<node name="simulator" pkg="au_uav_ros" type="simulator" />
-</launch>

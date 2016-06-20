@@ -1,6 +1,0 @@
-bool ask
----
-int32 planeID
-float64 initialLatitude
-float64 initialLongitude
-float64 initialAltitude
